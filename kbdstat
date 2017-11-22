@@ -1,0 +1,118 @@
+#!/usr/bin/env python3
+
+"""
+This is a template for simple Python 3 CLI applications.
+Replace this with your description.
+"""
+
+from os import system
+import argparse
+from logging import getLogger, DEBUG, INFO, debug, info, error
+from collections import Counter
+
+from pynput import keyboard
+
+
+
+ALL_COUNT = 0
+EACH_COUNT = Counter()
+
+
+
+class Cleaner(object):
+
+  def __init__(self):
+    self._jobs = []
+
+  def add_job(self, func, *args, **kwargs):
+    self._jobs.append((func, args, kwargs))
+
+  def do_all_jobs(self):
+    while self._jobs:
+      self.do_one_job()
+
+  def do_one_job(self):
+    # in reverse order:
+    func, args, kwargs = self._jobs.pop()
+    debug("cleanup: func=%s.%s, args=%r, kwargs=%r", func.__module__,
+         func.__name__, args, kwargs)
+    func(*args, **kwargs)
+
+
+
+def main():
+  cleaner = Cleaner()
+  abnormal_termination = False
+  try:
+    caught_main(cleaner)
+  except Exception as exception:
+    error("abnormal termination (see error at end of output)")
+    abnormal_termination = True
+    raise exception
+  finally:
+    debug("running cleanup jobs")
+    cleaner.do_all_jobs()
+
+  if abnormal_termination:
+    exit(1)
+  else:
+    debug("success - bye")
+
+
+
+def caught_main(cleaner):
+
+  parser = argparse.ArgumentParser(
+    description=__doc__,
+    formatter_class=argparse.ArgumentDefaultsHelpFormatter
+  )
+
+  parser.add_argument('-v', '--verbose', action='store_true', default=False,
+                      help='turn on verbose messages')
+  # argument taking a list:
+  #parser.add_argument('-i', '--ignore', nargs='*', default=[],
+  #                    help='list of settings modules to ignore')
+  # argument taking a list:
+  #parser.add_argument('on_or_off', choices=('on', 'off'), nargs='?',
+  #                    help='activate or deactivate')
+
+  args = parser.parse_args()
+
+  # set up logger
+  logger = getLogger()
+  logger.name = ""
+  if args.verbose:
+    logger.setLevel(INFO)
+
+  with keyboard.Listener(on_press=on_press) as listener:
+    listener.join()
+
+
+
+def on_press(key):
+
+  # since we run in a thread, we cannot use globals
+  if not hasattr(on_press, "_all_count"):
+    on_press._all_count = 0
+  if not hasattr(on_press, "_each_count"):
+    on_press._each_count = Counter()
+
+  on_press._all_count += 1
+  all_count = on_press._all_count
+  each_count = on_press._each_count
+
+  if hasattr(key, "char"):
+    each_count.update((key.char, ))
+  else:
+    each_count.update((key.name, ))
+
+  system('clear')
+
+  print(all_count)
+  for name, count in each_count.most_common():
+    print("%.2f%%\t%s\t\t%u" % (100*count/all_count, name, count))
+
+
+
+if __name__ == '__main__':
+  main()
