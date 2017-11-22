@@ -9,6 +9,7 @@ from os import system
 import argparse
 from logging import getLogger, DEBUG, INFO, debug, info, error
 from collections import Counter
+import curses
 
 from pynput import keyboard
 
@@ -84,6 +85,11 @@ def caught_main(cleaner):
   if args.verbose:
     logger.setLevel(INFO)
 
+  curses.initscr()
+  curses.noecho()
+  curses.cbreak()
+  cleaner.add_job(curses.endwin)
+
   with keyboard.Listener(on_press=on_press) as listener:
     listener.join()
 
@@ -96,22 +102,26 @@ def on_press(key):
     on_press._all_count = 0
   if not hasattr(on_press, "_each_count"):
     on_press._each_count = Counter()
+  if not hasattr(on_press, "_window"):
+    on_press._window = curses.initscr()
+    on_press._window.scrollok(1)
 
   on_press._all_count += 1
   all_count = on_press._all_count
   each_count = on_press._each_count
+  window = on_press._window
 
   if hasattr(key, "char"):
     each_count.update((key.char, ))
   else:
     each_count.update((key.name, ))
 
-  system('clear')
-
-  print(all_count)
+  window.erase()
   for name, count in each_count.most_common():
-    print("%.2f%%\t%s\t\t%u" % (100*count/all_count, name, count))
-
+    window.addstr(
+      "%.2f%%\t%s\t\t%u\n" % (100*count/all_count, name, count)
+    )
+  window.refresh()
 
 
 if __name__ == '__main__':
