@@ -90,7 +90,7 @@ def caught_main(cleaner):
   listener.start()
   cleaner.add_job(listener.stop)
 
-  # set up local variables
+  # set up counters
   all_count = 0
   each_count = Counter()
 
