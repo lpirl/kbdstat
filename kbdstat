@@ -8,8 +8,13 @@ import argparse
 from logging import getLogger, INFO, info, error
 from collections import Counter
 import curses
+from queue import Queue
 
 from pynput import keyboard
+
+
+
+KEY_QUEUE = Queue()
 
 
 
@@ -72,43 +77,45 @@ def caught_main(cleaner):
   if args.verbose:
     logger.setLevel(INFO)
 
+  # set up curses
   curses.initscr()
   curses.noecho()
   curses.cbreak()
+  window = curses.initscr()
+  window.scrollok(1)
   cleaner.add_job(curses.endwin)
 
-  with keyboard.Listener(on_press=on_press) as listener:
-    listener.join()
+  # set up keyboard monitoring
+  listener = keyboard.Listener(on_press=on_press_handler)
+  listener.start()
+  cleaner.add_job(listener.stop)
+
+  # set up local variables
+  all_count = 0
+  each_count = Counter()
+
+  # process monitoring output
+  while True:
+    each_count.update((KEY_QUEUE.get(), ))
+    all_count += 1
+
+    window.erase()
+    for name, count in reversed(each_count.most_common()):
+      window.addstr(
+        "%.2f%%\t%s%u\n" % (100*count/all_count, name.ljust(12), count)
+      )
+    window.refresh()
 
 
-
-def on_press(key):
-
-  # since we run in a thread, we cannot use globals
-  if not hasattr(on_press, "_all_count"):
-    on_press._all_count = 0
-  if not hasattr(on_press, "_each_count"):
-    on_press._each_count = Counter()
-  if not hasattr(on_press, "_window"):
-    on_press._window = curses.initscr()
-    on_press._window.scrollok(1)
-
-  on_press._all_count += 1
-  all_count = on_press._all_count
-  each_count = on_press._each_count
-  window = on_press._window
-
+def on_press_handler(key):
+  """
+  Just throws the key pressed (as string) into the queue to not block
+  further input.
+  """
   if hasattr(key, "char"):
-    each_count.update((key.char, ))
+    KEY_QUEUE.put(key.char)
   else:
-    each_count.update((key.name, ))
-
-  window.erase()
-  for name, count in each_count.most_common():
-    window.addstr(
-      "%.2f%%\t%s\t\t%u\n" % (100*count/all_count, name, count)
-    )
-  window.refresh()
+    KEY_QUEUE.put(key.name)
 
 
 if __name__ == '__main__':
