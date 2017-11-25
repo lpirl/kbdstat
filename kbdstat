@@ -96,7 +96,7 @@ def caught_main(cleaner):
 
   # process monitoring output
   while True:
-    each_count.update((KEY_QUEUE.get(), ))
+    each_count.update((KEY_QUEUE.get() or "unknown", ))
     all_count += 1
 
     window.erase()
